@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <title>Touch Player</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <script type="module" src="/src/main.js" defer></script>
+  </head>
+  <body>
+    <!-- mpv renders behind this transparent page; everything here is an overlay. -->
+    <div id="stage">
+      <div id="seek-hint" class="hint"></div>
+
+      <div id="empty" class="empty">
+        <button id="open-big" class="btn-big">Open video</button>
+        <p>or drop a file here</p>
+      </div>
+    </div>
+
+    <div id="topbar" class="bar">
+      <button id="open" title="Open">&#128193; Open</button>
+      <div class="title" id="title"></div>
+      <button id="tracks" title="Audio &amp; subtitles" disabled>&#127911; Audio / Subs</button>
+    </div>
+
+    <div id="controls" class="bar">
+      <div class="seek-row">
+        <span id="time">0:00</span>
+        <input id="seek" type="range" min="0" max="0" step="0.1" value="0" />
+        <span id="duration">0:00</span>
+      </div>
+      <div class="button-row">
+        <button id="back" title="Back 10s">&#8634; 10</button>
+        <button id="play" class="primary" title="Play / Pause">&#9654;</button>
+        <button id="fwd" title="Forward 10s">10 &#8635;</button>
+        <div class="spacer"></div>
+        <button id="mute" title="Mute">&#128266;</button>
+        <input id="volume" type="range" min="0" max="100" step="1" value="100" />
+        <button id="fullscreen" title="Fullscreen">&#x26F6;</button>
+      </div>
+    </div>
+
+    <div id="tracks-panel" class="modal hidden">
+      <div class="dialog" role="dialog" aria-labelledby="tracks-heading">
+        <header>
+          <h2 id="tracks-heading">Audio &amp; Subtitles</h2>
+          <button id="tracks-close" title="Close">&#10005;</button>
+        </header>
+        <div class="columns">
+          <section>
+            <h3>Audio</h3>
+            <ul id="audio-list" class="track-list"></ul>
+          </section>
+          <section>
+            <h3>Subtitles</h3>
+            <ul id="sub-list" class="track-list"></ul>
+          </section>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

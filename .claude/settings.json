@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(seq 1 120)",
+      "Bash(grep -qE 'Running .*touch-player|error|Error|panicked' C:/Users/Alan/AppData/Local/Temp/claude/a--dev-windows-touch-player/14805f51-40d9-4641-a5aa-bb512df958df/tasks/blm35o8a0.output)",
+      "Bash(break)",
+      "Bash(sleep 1)",
+      "Bash(sleep 6)",
+      "PowerShell(Get-Process touch-player -ErrorAction SilentlyContinue | Stop-Process -Force; Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'windows_touch_player' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }; \"stopped\")",
+      "PowerShell($s=\"C:\\\\Users\\\\Alan\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\a--dev-windows-touch-player\\\\14805f51-40d9-4641-a5aa-bb512df958df\\\\scratchpad\"; \"1`r`n00:00:00,000 --> 00:01:00,000`r`nHello from English subs`r`n\" | Set-Content -Encoding utf8 \"$s\\\\en.srt\"; \"1`r`n00:00:00,000 --> 00:01:00,000`r`nこんにちは`r`n\" | Set-Content -Encoding utf8 \"$s\\\\ja.srt\"; cd A:\\\\dev\\\\windows_touch_player; npm run build 2>&1 | Select-Object -Last 1)",
+      "PowerShell(Get-NetTCPConnection -LocalPort 1420 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Get-CimInstance Win32_Process -Filter \"ProcessId=$\\($_.OwningProcess\\)\" | Select-Object ProcessId, CommandLine }; Get-Process touch-player -ErrorAction SilentlyContinue | Select-Object Id, StartTime)",
+      "Bash(tasklist)",
+      "PowerShell(Get-Process touch-player -ErrorAction SilentlyContinue | Stop-Process -Force; Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'windows_touch_player' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }; cd A:\\\\dev\\\\windows_touch_player; Select-String -Path src\\\\main.js -Pattern \"TEMP|ERR:|lavfi\"; npm run build 2>&1 | Select-Object -Last 1)"
+    ]
+  }
+}
