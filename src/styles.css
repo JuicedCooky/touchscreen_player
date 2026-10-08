@@ -336,6 +336,39 @@ input[type="range"]::-webkit-slider-thumb {
   font-size: 14px;
   color: var(--muted);
 }
+.option-row .value {
+  font-size: 14px;
+  color: var(--accent);
+}
+
+.dialog-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 16px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.dialog-footer button {
+  flex: 1 1 auto;
+  min-height: var(--touch);
+  padding: 0 16px;
+  border: none;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 16px;
+  white-space: nowrap;
+}
+.dialog-footer button:active {
+  background: rgba(255, 255, 255, 0.16);
+}
+.dialog-footer button.primary {
+  background: var(--accent);
+  color: #fff;
+}
+.dialog-footer button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
 
 .tabs {
   display: flex;
@@ -385,6 +418,76 @@ input[type="range"]::-webkit-slider-thumb {
   color: #fff;
 }
 
+/* ---------- centered playback controls (controls layout "center") ---------- */
+
+.center-controls {
+  top: 50%;
+  left: 50%;
+  right: auto;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  transform: translate(-50%, -50%);
+}
+.center-controls:empty,
+body.idle #center-controls {
+  display: none;
+}
+.center-controls.hidden {
+  transform: translate(-50%, -50%) scale(0.9);
+}
+.center-controls button {
+  width: 80px;
+  height: 80px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(12, 12, 14, 0.6);
+  font-size: 20px;
+}
+.center-controls button:active {
+  background: rgba(255, 255, 255, 0.2);
+}
+.center-controls button.primary {
+  width: 104px;
+  height: 104px;
+  background: var(--accent);
+  font-size: 34px;
+}
+
+/* ---------- confirmation box ---------- */
+
+.confirm {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.5);
+}
+.confirm.hidden {
+  display: none;
+}
+.confirm-box {
+  width: min(420px, 100%);
+  padding: 24px;
+  border-radius: 20px;
+  background: #232328;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+.confirm-box h2 {
+  margin: 0 0 8px;
+  font-size: 20px;
+}
+.confirm-box p {
+  margin: 0 0 20px;
+  color: var(--muted);
+}
+.customize-actions button.danger {
+  background: #d9443f;
+  color: #fff;
+}
+
 /* ---------- layout customizer ---------- */
 
 .customize {
@@ -397,7 +500,9 @@ input[type="range"]::-webkit-slider-thumb {
 }
 /* The real bars hide while their preview copies are shown. */
 body.customizing #topbar,
-body.customizing #controls {
+body.customizing #controls,
+body.customizing #center-controls,
+body.customizing #empty {
   display: none;
 }
 
@@ -427,6 +532,46 @@ body.customizing #controls {
   content: "Bottom bar";
   top: -10px;
 }
+#customize-preview .center-controls {
+  padding: 22px 18px 14px;
+  outline-offset: 0;
+}
+#customize-preview .center-controls::before {
+  content: "Playback";
+  top: -10px;
+}
+
+/* Toolbar at the top of the layout editor (draggable like the panel). */
+.customize-panel.customize-toolbar {
+  top: 120px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: auto;
+  padding: 10px 12px 10px 10px;
+  border-radius: 16px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.customize-toolbar .drag-grip {
+  width: 5px;
+  height: 32px;
+  margin: 0 0 0 4px;
+}
+.toolbar-label {
+  color: var(--muted);
+  font-size: 15px;
+}
+.customize-toolbar .segmented button {
+  padding: 0 18px;
+}
+
+/* Starts above the bottom bar so it doesn't cover centered controls. */
+.customize-panel.layout-panel {
+  top: auto;
+  bottom: 128px;
+  transform: translateX(-50%);
+}
 
 .customize-panel {
   position: absolute;
@@ -439,6 +584,25 @@ body.customizing #controls {
   background: #1b1b1f;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   text-align: center;
+}
+/* The panel can be dragged by anything except its buttons (see makeDraggable). */
+.customize-panel {
+  cursor: grab;
+  touch-action: none;
+}
+.customize-panel.dragging {
+  cursor: grabbing;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.65);
+}
+.customize-panel button {
+  cursor: pointer;
+}
+.drag-grip {
+  width: 44px;
+  height: 5px;
+  margin: -10px auto 14px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.25);
 }
 .customize-panel h2 {
   margin: 0 0 8px;

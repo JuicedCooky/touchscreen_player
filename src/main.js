@@ -26,6 +26,7 @@ const els = {
   empty: $("empty"),
   topbar: $("topbar"),
   controls: $("controls"),
+  centerControls: $("center-controls"),
   title: $("title"),
   tracksBtn: $("tracks"),
   tracksPanel: $("tracks-panel"),
@@ -97,6 +98,7 @@ const modalOpen = () => !!document.querySelector(".modal:not(.hidden)");
 function setBarsHidden(hidden) {
   els.topbar.classList.toggle("hidden", hidden);
   els.controls.classList.toggle("hidden", hidden);
+  els.centerControls.classList.toggle("hidden", hidden);
   document.body.style.cursor = hidden ? "none" : "";
 }
 
@@ -252,8 +254,9 @@ els.tracksBtn.onclick = async () => {
 };
 
 // ---------- settings ----------
-// Each setting is a row of segmented buttons; values persist in localStorage and are
-// re-applied to mpv on startup.
+// General-tab settings are rows of segmented buttons. All edits in the dialog (any tab,
+// including the full-screen editors) go into `draft` and only take effect on Confirm.
+// Saved values persist in localStorage and are re-applied to mpv on startup.
 
 const SETTINGS = [
   {
@@ -282,12 +285,28 @@ const SETTINGS = [
 const STORAGE_KEY = "touch-player-settings";
 // Double-tap zone boundaries as fractions of the window width: [left|center, center|right].
 const DEFAULT_TAP_ZONES = [1 / 3, 2 / 3];
-const settings = Object.fromEntries(SETTINGS.map((s) => [s.key, s.default]));
-settings.tapZones = DEFAULT_TAP_ZONES;
+const DEFAULTS = {
+  ...Object.fromEntries(SETTINGS.map((s) => [s.key, s.default])),
+  tapZones: DEFAULT_TAP_ZONES,
+  controlsLayout: "bar", // "bar": play/skip buttons in the bottom bar; "center": large, mid-screen
+};
+// How to apply settings that aren't rows in the General tab.
+const EXTRA_APPLY = { controlsLayout: (v) => applyControlsLayout(v) };
+// Which settings each tab's "Reset this tab" resets.
+const TAB_KEYS = {
+  general: SETTINGS.map((s) => s.key),
+  customize: ["tapZones", "controlsLayout"],
+};
+
+const clone = (obj) => structuredClone(obj);
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+const settings = clone(DEFAULTS);
 try {
   Object.assign(settings, JSON.parse(localStorage.getItem(STORAGE_KEY)) ?? {});
 } catch {}
 if (!Array.isArray(settings.tapZones) || settings.tapZones.length !== 2) settings.tapZones = DEFAULT_TAP_ZONES;
+if (!["bar", "center"].includes(settings.controlsLayout)) settings.controlsLayout = DEFAULTS.controlsLayout;
 
 function saveSettings() {
   try {
@@ -300,14 +319,22 @@ function updateSkipLabels() {
   els.fwd.innerHTML = `${settings.seekStep} &#8635;`;
 }
 
-function changeSetting(def, value) {
-  settings[def.key] = value;
-  saveSettings();
-  def.apply(value);
-  renderSettings();
-}
+let draft = clone(settings);
+let activeTab = "general";
 
 function renderSettings() {
+  renderGeneralTab();
+  const [l, r] = draft.tapZones;
+  $("layout-value").textContent = `Playback buttons: ${draft.controlsLayout === "center" ? "Centered" : "In bottom bar"}`;
+  $("zones-value").textContent =`Current: ${[l, r - l, 1 - r].map((f) => Math.round(f * 100)).join("% / ")}%`;
+
+  const allSame = (a, b, keys = Object.keys(DEFAULTS)) => keys.every((k) => same(a[k], b[k]));
+  $("settings-confirm").disabled = allSame(draft, settings);
+  $("settings-reset-all").disabled = allSame(draft, DEFAULTS);
+  $("settings-reset-tab").disabled = allSame(draft, DEFAULTS, TAB_KEYS[activeTab]);
+}
+
+function renderGeneralTab() {
   els.settingsBody.replaceChildren(
     ...SETTINGS.map((def) => {
       const row = document.createElement("section");
@@ -319,8 +346,11 @@ function renderSettings() {
       for (const [value, label] of def.options) {
         const btn = document.createElement("button");
         btn.textContent = label;
-        btn.classList.toggle("selected", settings[def.key] === value);
-        btn.onclick = () => changeSetting(def, value);
+        btn.classList.toggle("selected", draft[def.key] === value);
+        btn.onclick = () => {
+          draft[def.key] = value;
+          renderSettings();
+        };
         group.append(btn);
       }
       row.append(h, group);
@@ -329,18 +359,60 @@ function renderSettings() {
   );
 }
 
+// Opening always starts a fresh draft, so closing the dialog any other way than
+// Confirm (Cancel, ✕, backdrop, Esc) discards pending changes.
 $("settings").onclick = () => {
+  draft = clone(settings);
   renderSettings();
   openModal(els.settingsPanel);
+};
+
+$("settings-cancel").onclick = closeModals;
+
+$("settings-reset-all").onclick = async () => {
+  const ok = await askConfirm({
+    title: "Reset all settings?",
+    message: "Every setting in every tab will go back to its default. Nothing is saved until you press Confirm.",
+    action: "Reset all",
+  });
+  if (!ok) return;
+  draft = clone(DEFAULTS);
+  renderSettings();
+};
+
+$("settings-reset-tab").onclick = async () => {
+  const tabName = els.settingsPanel.querySelector(`[data-tab="${activeTab}"]`).textContent;
+  const ok = await askConfirm({
+    title: `Reset ${tabName} settings?`,
+    message: `Settings in the ${tabName} tab will go back to their defaults. Nothing is saved until you press Confirm.`,
+    action: "Reset tab",
+  });
+  if (!ok) return;
+  for (const key of TAB_KEYS[activeTab]) draft[key] = clone(DEFAULTS[key]);
+  renderSettings();
+};
+
+$("settings-confirm").onclick = () => {
+  for (const key of Object.keys(DEFAULTS)) {
+    if (same(draft[key], settings[key])) continue;
+    settings[key] = clone(draft[key]);
+    const apply = SETTINGS.find((s) => s.key === key)?.apply ?? EXTRA_APPLY[key];
+    apply?.(settings[key]);
+  }
+  Object.assign(settings, clone(draft));
+  saveSettings();
+  closeModals();
 };
 
 const tabs = els.settingsPanel.querySelectorAll("[data-tab]");
 tabs.forEach((tab) => {
   tab.onclick = () => {
+    activeTab = tab.dataset.tab;
     tabs.forEach((t) => t.classList.toggle("active", t === tab));
     els.settingsPanel.querySelectorAll("[data-panel]").forEach((panel) => {
       panel.classList.toggle("hidden", panel.dataset.panel !== tab.dataset.tab);
     });
+    renderSettings();
   };
 });
 
@@ -350,7 +422,45 @@ tabs.forEach((tab) => {
 
 const openEditor = () => document.querySelector(".customize:not(.hidden)");
 
+// Lets a panel be dragged around by any part that isn't a button, kept inside the window.
+// Dragging switches it from its CSS-centered position to explicit left/top pixels;
+// resetPanelPosition() hands positioning back to the stylesheet.
+function makeDraggable(panel) {
+  let start = null;
+  panel.addEventListener("pointerdown", (e) => {
+    if (e.target.closest("button")) return;
+    const rect = panel.getBoundingClientRect();
+    start = { x: e.clientX, y: e.clientY, left: rect.left, top: rect.top, w: rect.width, h: rect.height };
+    Object.assign(panel.style, { left: `${rect.left}px`, top: `${rect.top}px`, bottom: "auto", transform: "none" });
+    panel.setPointerCapture(e.pointerId);
+    panel.classList.add("dragging");
+  });
+  panel.addEventListener("pointermove", (e) => {
+    if (!start) return;
+    const left = Math.min(window.innerWidth - start.w, Math.max(0, start.left + e.clientX - start.x));
+    const top = Math.min(window.innerHeight - start.h, Math.max(0, start.top + e.clientY - start.y));
+    panel.style.left = `${left}px`;
+    panel.style.top = `${top}px`;
+  });
+  const stop = () => {
+    start = null;
+    panel.classList.remove("dragging");
+  };
+  panel.addEventListener("pointerup", stop);
+  panel.addEventListener("pointercancel", stop);
+}
+
+function resetPanelPosition(panel) {
+  panel.style.removeProperty("left");
+  panel.style.removeProperty("top");
+  panel.style.removeProperty("bottom");
+  panel.style.removeProperty("transform");
+}
+
+document.querySelectorAll(".customize-panel").forEach(makeDraggable);
+
 function showEditor(editor) {
+  editor.querySelectorAll(".customize-panel").forEach(resetPanelPosition);
   els.settingsPanel.classList.add("hidden");
   editor.classList.remove("hidden");
   document.body.classList.add("customizing");
@@ -362,12 +472,27 @@ function closeEditor() {
   openModal(els.settingsPanel);
 }
 
-// ---------- layout customizer ----------
-// Shows non-interactive copies of the live bars in place. Save is a stub until the
-// layout becomes editable.
+// ---------- controls layout ----------
+// Moves the back / play / forward buttons between the bottom bar and the
+// mid-screen container. The buttons keep their ids and handlers either way.
 
-function openCustomize() {
-  const preview = [els.topbar, els.controls].map((bar) => {
+const playbackButtons = () => [els.back, els.play, els.fwd];
+
+function applyControlsLayout(layout) {
+  if (layout === "center") els.centerControls.append(...playbackButtons());
+  else els.controls.querySelector(".button-row").prepend(...playbackButtons());
+}
+
+// ---------- layout customizer ----------
+// Shows non-interactive copies of the live bars in place. The toolbar's layout toggle
+// is previewed by temporarily applying it to the (hidden) real controls and re-cloning;
+// closing the editor restores the saved layout. Save puts the choice in the settings draft.
+
+let layoutChoice = DEFAULTS.controlsLayout;
+
+function renderLayoutPreview() {
+  applyControlsLayout(layoutChoice);
+  const preview = [els.topbar, els.controls, els.centerControls].map((bar) => {
     const copy = bar.cloneNode(true);
     copy.removeAttribute("id");
     copy.querySelectorAll("[id]").forEach((n) => n.removeAttribute("id"));
@@ -376,27 +501,48 @@ function openCustomize() {
     return copy;
   });
   $("customize-preview").replaceChildren(...preview);
+  els.customize.querySelectorAll("[data-layout]").forEach((btn) => {
+    btn.classList.toggle("selected", btn.dataset.layout === layoutChoice);
+  });
+}
+
+function openCustomize() {
+  layoutChoice = draft.controlsLayout;
+  renderLayoutPreview();
   showEditor(els.customize);
 }
 
 function closeCustomize() {
+  applyControlsLayout(settings.controlsLayout);
   $("customize-preview").replaceChildren();
   closeEditor();
 }
 
+els.customize.querySelectorAll("[data-layout]").forEach((btn) => {
+  btn.onclick = () => {
+    layoutChoice = btn.dataset.layout;
+    renderLayoutPreview();
+  };
+});
+
 $("open-customize").onclick = openCustomize;
 $("customize-cancel").onclick = closeCustomize;
-$("customize-save").onclick = closeCustomize; // nothing to persist yet
+$("customize-save").onclick = () => {
+  draft.controlsLayout = layoutChoice;
+  closeCustomize();
+  renderSettings();
+};
 
 // ---------- double-tap zone editor ----------
 // Two draggable dividers split the screen into skip-back / play-pause / skip-forward
-// areas. Edits go to a draft that is only stored on Save.
+// areas. Save copies the editor's working values into the settings draft; they're only
+// stored when the Settings dialog is confirmed.
 
 const MIN_ZONE = 0.1; // no zone may be narrower than 10% of the width
 const zonesEl = $("zones");
 const zoneEls = zonesEl.querySelectorAll(".zone");
 const dividerEls = zonesEl.querySelectorAll(".divider");
-let zonesDraft = [...settings.tapZones];
+let zonesDraft = [...DEFAULT_TAP_ZONES];
 
 function renderZones() {
   const edges = [0, ...zonesDraft, 1];
@@ -426,7 +572,7 @@ dividerEls.forEach((div, i) => {
 });
 
 $("open-zones").onclick = () => {
-  zonesDraft = [...settings.tapZones];
+  zonesDraft = [...draft.tapZones];
   renderZones();
   showEditor(zonesEl);
 };
@@ -436,10 +582,39 @@ $("zones-reset").onclick = () => {
 };
 $("zones-cancel").onclick = closeEditor;
 $("zones-save").onclick = () => {
-  settings.tapZones = [...zonesDraft];
-  saveSettings();
+  draft.tapZones = [...zonesDraft];
   closeEditor();
+  renderSettings();
 };
+
+// ---------- confirmation box ----------
+// askConfirm() shows a yes/no box above everything else and resolves to true only if
+// the action button is pressed. Cancel, Esc and tapping outside resolve to false.
+
+const confirmEl = $("confirm");
+let resolveConfirm = null;
+
+function askConfirm({ title, message, action }) {
+  $("confirm-title").textContent = title;
+  $("confirm-message").textContent = message;
+  $("confirm-yes").textContent = action;
+  confirmEl.classList.remove("hidden");
+  $("confirm-no").focus(); // the safe choice gets focus, so a stray Enter doesn't reset
+  return new Promise((resolve) => (resolveConfirm = resolve));
+}
+
+function answerConfirm(ok) {
+  confirmEl.classList.add("hidden");
+  resolveConfirm?.(ok);
+  resolveConfirm = null;
+}
+
+const confirmOpen = () => !confirmEl.classList.contains("hidden");
+$("confirm-yes").onclick = () => answerConfirm(true);
+$("confirm-no").onclick = () => answerConfirm(false);
+confirmEl.addEventListener("click", (e) => {
+  if (e.target === confirmEl) answerConfirm(false);
+});
 
 // ---------- modals ----------
 
@@ -488,6 +663,10 @@ els.volume.addEventListener("input", () => {
 });
 
 document.addEventListener("keydown", (e) => {
+  if (confirmOpen()) {
+    if (e.key === "Escape") answerConfirm(false);
+    return;
+  }
   const editor = openEditor();
   if (editor) {
     if (e.key === "Escape") editor.querySelector("[data-cancel]").click();
@@ -563,6 +742,7 @@ function onProperty({ name, data }) {
       break;
     case "idle-active":
       state.idle = data;
+      document.body.classList.toggle("idle", data);
       els.empty.classList.toggle("hidden", !data);
       els.tracksBtn.disabled = data;
       if (data) els.tracksPanel.classList.add("hidden");
@@ -575,6 +755,7 @@ function onProperty({ name, data }) {
 async function start() {
   paintRange(els.volume);
   updateSkipLabels();
+  applyControlsLayout(settings.controlsLayout);
   try {
     // Listen first so the initial property values emitted during init aren't missed.
     await observeProperties(OBSERVED_PROPERTIES, onProperty);

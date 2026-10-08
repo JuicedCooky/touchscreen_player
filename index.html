@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="/src/styles.css" />
     <script type="module" src="/src/main.js" defer></script>
   </head>
-  <body>
+  <body class="idle">
     <!-- mpv renders behind this transparent page; everything here is an overlay. -->
     <div id="stage">
       <div id="seek-hint" class="hint"></div>
@@ -41,6 +41,9 @@
         <button id="fullscreen" title="Fullscreen">&#x26F6;</button>
       </div>
     </div>
+
+    <!-- In the "centered" controls layout, JS moves #back/#play/#fwd in here. -->
+    <div id="center-controls" class="bar center-controls"></div>
 
     <div id="tracks-panel" class="modal hidden">
       <div class="dialog" role="dialog" aria-labelledby="tracks-heading">
@@ -76,11 +79,32 @@
           <button id="open-customize" class="option-row">
             <span class="name">Customize layout</span>
             <span class="meta">Change which controls appear on screen and where they sit.</span>
+            <span class="value" id="layout-value"></span>
           </button>
           <button id="open-zones" class="option-row">
             <span class="name">Double-tap zones</span>
             <span class="meta">Resize the left (skip back), center (play / pause) and right (skip forward) areas.</span>
+            <span class="value" id="zones-value"></span>
           </button>
+        </div>
+        <!-- Changes in any tab are a draft until Confirm. -->
+        <footer class="dialog-footer">
+          <button id="settings-cancel">Cancel</button>
+          <button id="settings-reset-all">Reset all settings</button>
+          <button id="settings-reset-tab">Reset this tab</button>
+          <button id="settings-confirm" class="primary">Confirm</button>
+        </footer>
+      </div>
+    </div>
+
+    <!-- Yes/no confirmation shown on top of other dialogs (see askConfirm in main.js). -->
+    <div id="confirm" class="confirm hidden">
+      <div class="confirm-box" role="alertdialog" aria-labelledby="confirm-title" aria-describedby="confirm-message">
+        <h2 id="confirm-title"></h2>
+        <p id="confirm-message"></p>
+        <div class="customize-actions">
+          <button id="confirm-no">Cancel</button>
+          <button id="confirm-yes" class="danger"></button>
         </div>
       </div>
     </div>
@@ -89,9 +113,18 @@
          matches the live layout. -->
     <div id="customize" class="customize hidden">
       <div id="customize-preview"></div>
-      <div class="customize-panel" role="dialog" aria-labelledby="customize-heading">
+      <div class="customize-panel customize-toolbar" role="toolbar" aria-label="Layout options">
+        <div class="drag-grip" aria-hidden="true"></div>
+        <span class="toolbar-label">Playback buttons</span>
+        <div class="segmented" id="layout-toggle">
+          <button data-layout="bar">In bottom bar</button>
+          <button data-layout="center">Centered</button>
+        </div>
+      </div>
+      <div class="customize-panel layout-panel" role="dialog" aria-labelledby="customize-heading">
+        <div class="drag-grip" aria-hidden="true"></div>
         <h2 id="customize-heading">Customize layout</h2>
-        <p>This is your current layout. Rearranging controls is coming soon.</p>
+        <p>Use the toolbar to choose where the playback buttons go.</p>
         <div class="customize-actions">
           <button id="customize-cancel" data-cancel>Cancel</button>
           <button id="customize-save" class="primary">Save</button>
@@ -107,6 +140,7 @@
       <div class="divider" data-divider="0"></div>
       <div class="divider" data-divider="1"></div>
       <div class="customize-panel zones-panel" role="dialog" aria-labelledby="zones-heading">
+        <div class="drag-grip" aria-hidden="true"></div>
         <h2 id="zones-heading">Double-tap zones</h2>
         <p>Drag the dividers to resize each area.</p>
         <div class="customize-actions">
