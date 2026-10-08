@@ -20,6 +20,7 @@
 
     <div id="topbar" class="bar">
       <button id="open" title="Open">&#128193; Open</button>
+      <button id="settings" title="Settings">&#9881;&#65039; Settings</button>
       <div class="title" id="title"></div>
       <button id="tracks" title="Audio &amp; subtitles" disabled>&#127911; Audio / Subs</button>
     </div>
@@ -45,7 +46,7 @@
       <div class="dialog" role="dialog" aria-labelledby="tracks-heading">
         <header>
           <h2 id="tracks-heading">Audio &amp; Subtitles</h2>
-          <button id="tracks-close" title="Close">&#10005;</button>
+          <button data-close title="Close">&#10005;</button>
         </header>
         <div class="columns">
           <section>
@@ -57,6 +58,16 @@
             <ul id="sub-list" class="track-list"></ul>
           </section>
         </div>
+      </div>
+    </div>
+
+    <div id="settings-panel" class="modal hidden">
+      <div class="dialog settings" role="dialog" aria-labelledby="settings-heading">
+        <header>
+          <h2 id="settings-heading">Settings</h2>
+          <button data-close title="Close">&#10005;</button>
+        </header>
+        <div id="settings-body" class="settings-body"></div>
       </div>
     </div>
   </body>

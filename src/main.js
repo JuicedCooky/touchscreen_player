@@ -14,7 +14,6 @@ const OBSERVED_PROPERTIES = [
 ];
 
 const VIDEO_EXTENSIONS = ["mp4", "mkv", "webm", "avi", "mov", "wmv", "flv", "m4v", "ts", "mpg", "mpeg", "mp3", "flac", "wav", "ogg", "m4a"];
-const SEEK_STEP = 10;
 const HIDE_DELAY_MS = 3000;
 const DOUBLE_TAP_MS = 300;
 
@@ -29,6 +28,10 @@ const els = {
   tracksPanel: $("tracks-panel"),
   audioList: $("audio-list"),
   subList: $("sub-list"),
+  settingsPanel: $("settings-panel"),
+  settingsBody: $("settings-body"),
+  back: $("back"),
+  fwd: $("fwd"),
   seek: $("seek"),
   time: $("time"),
   duration: $("duration"),
@@ -85,7 +88,7 @@ async function toggleFullscreen() {
 // ---------- controls visibility ----------
 
 const barsHidden = () => els.controls.classList.contains("hidden");
-const tracksOpen = () => !els.tracksPanel.classList.contains("hidden");
+const modalOpen = () => !!document.querySelector(".modal:not(.hidden)");
 
 function setBarsHidden(hidden) {
   els.topbar.classList.toggle("hidden", hidden);
@@ -97,7 +100,7 @@ let hideTimer;
 function showControls() {
   setBarsHidden(false);
   clearTimeout(hideTimer);
-  if (!state.paused && !state.idle && !tracksOpen()) {
+  if (!state.paused && !state.idle && !modalOpen()) {
     hideTimer = setTimeout(() => setBarsHidden(true), HIDE_DELAY_MS);
   }
 }
@@ -125,12 +128,13 @@ els.stage.addEventListener("pointerup", (e) => {
     clearTimeout(singleTapTimer);
     lastTap = 0;
     const x = e.clientX / window.innerWidth;
+    const step = settings.seekStep;
     if (x < 1 / 3) {
-      seekBy(-SEEK_STEP);
-      flashHint(`« ${SEEK_STEP}s`, "left");
+      seekBy(-step);
+      flashHint(`« ${step}s`, "left");
     } else if (x > 2 / 3) {
-      seekBy(SEEK_STEP);
-      flashHint(`${SEEK_STEP}s »`, "right");
+      seekBy(step);
+      flashHint(`${step}s »`, "right");
     } else {
       togglePause();
     }
@@ -207,30 +211,111 @@ async function renderTracks() {
   );
 }
 
-async function openTracks() {
+els.tracksBtn.onclick = async () => {
   await renderTracks();
-  els.tracksPanel.classList.remove("hidden");
+  openModal(els.tracksPanel);
+};
+
+// ---------- settings ----------
+// Each setting is a row of segmented buttons; values persist in localStorage and are
+// re-applied to mpv on startup.
+
+const SETTINGS = [
+  {
+    key: "seekStep",
+    label: "Skip step (buttons & double-tap)",
+    default: 10,
+    options: [[5, "5s"], [10, "10s"], [15, "15s"], [30, "30s"]],
+    apply: updateSkipLabels,
+  },
+  {
+    key: "subScale",
+    label: "Subtitle size",
+    default: 1,
+    options: [[0.75, "Small"], [1, "Normal"], [1.4, "Large"], [1.8, "Extra large"]],
+    apply: (v) => mpv(command("set", ["sub-scale", String(v)])),
+  },
+  {
+    key: "hwdec",
+    label: "Hardware decoding",
+    default: "auto-safe",
+    options: [["auto-safe", "On"], ["no", "Off"]],
+    apply: (v) => mpv(command("set", ["hwdec", v])),
+  },
+];
+
+const STORAGE_KEY = "touch-player-settings";
+const settings = Object.fromEntries(SETTINGS.map((s) => [s.key, s.default]));
+try {
+  Object.assign(settings, JSON.parse(localStorage.getItem(STORAGE_KEY)) ?? {});
+} catch {}
+
+function updateSkipLabels() {
+  els.back.innerHTML = `&#8634; ${settings.seekStep}`;
+  els.fwd.innerHTML = `${settings.seekStep} &#8635;`;
+}
+
+function changeSetting(def, value) {
+  settings[def.key] = value;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  } catch {}
+  def.apply(value);
+  renderSettings();
+}
+
+function renderSettings() {
+  els.settingsBody.replaceChildren(
+    ...SETTINGS.map((def) => {
+      const row = document.createElement("section");
+      row.className = "setting";
+      const h = document.createElement("h3");
+      h.textContent = def.label;
+      const group = document.createElement("div");
+      group.className = "segmented";
+      for (const [value, label] of def.options) {
+        const btn = document.createElement("button");
+        btn.textContent = label;
+        btn.classList.toggle("selected", settings[def.key] === value);
+        btn.onclick = () => changeSetting(def, value);
+        group.append(btn);
+      }
+      row.append(h, group);
+      return row;
+    }),
+  );
+}
+
+$("settings").onclick = () => {
+  renderSettings();
+  openModal(els.settingsPanel);
+};
+
+// ---------- modals ----------
+
+function openModal(panel) {
+  panel.classList.remove("hidden");
   showControls();
 }
 
-function closeTracks() {
-  els.tracksPanel.classList.add("hidden");
+function closeModals() {
+  document.querySelectorAll(".modal").forEach((m) => m.classList.add("hidden"));
   showControls();
 }
 
-els.tracksBtn.onclick = openTracks;
-$("tracks-close").onclick = closeTracks;
-// Tapping the dimmed backdrop (outside the dialog) closes it.
-els.tracksPanel.addEventListener("click", (e) => {
-  if (e.target === els.tracksPanel) closeTracks();
+document.querySelectorAll(".modal").forEach((modal) => {
+  // Tapping the dimmed backdrop (outside the dialog) closes it.
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal || e.target.closest("[data-close]")) closeModals();
+  });
 });
 
 // ---------- control bars ----------
 
 $("open").onclick = openFile;
 $("open-big").onclick = openFile;
-$("back").onclick = () => seekBy(-SEEK_STEP);
-$("fwd").onclick = () => seekBy(SEEK_STEP);
+els.back.onclick = () => seekBy(-settings.seekStep);
+els.fwd.onclick = () => seekBy(settings.seekStep);
 $("fullscreen").onclick = toggleFullscreen;
 els.play.onclick = togglePause;
 els.mute.onclick = () => mpv(command("cycle", ["mute"]));
@@ -253,8 +338,8 @@ els.volume.addEventListener("input", () => {
 });
 
 document.addEventListener("keydown", (e) => {
-  if (tracksOpen()) {
-    if (e.key === "Escape") closeTracks();
+  if (modalOpen()) {
+    if (e.key === "Escape") closeModals();
     return;
   }
   switch (e.key) {
@@ -325,7 +410,7 @@ function onProperty({ name, data }) {
       state.idle = data;
       els.empty.classList.toggle("hidden", !data);
       els.tracksBtn.disabled = data;
-      if (data && tracksOpen()) closeTracks();
+      if (data) els.tracksPanel.classList.add("hidden");
       updatePlayIcon();
       showControls();
       break;
@@ -334,20 +419,21 @@ function onProperty({ name, data }) {
 
 async function start() {
   paintRange(els.volume);
+  updateSkipLabels();
   try {
     // Listen first so the initial property values emitted during init aren't missed.
     await observeProperties(OBSERVED_PROPERTIES, onProperty);
     await init({
       initialOptions: {
         vo: "gpu-next",
-        hwdec: "auto-safe",
+        hwdec: settings.hwdec,
+        "sub-scale": String(settings.subScale),
         "keep-open": "yes",
         "force-window": "yes",
         idle: "yes",
       },
       observedProperties: OBSERVED_PROPERTIES,
-    });
-  } catch (e) {
+    });  } catch (e) {
     console.error("mpv init failed:", e);
     els.empty.innerHTML = `<p>Failed to start mpv:<br>${String(e)}</p><p>Run <code>npm run setup-lib</code> and restart.</p>`;
   }

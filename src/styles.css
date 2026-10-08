@@ -297,6 +297,46 @@ input[type="range"]::-webkit-slider-thumb {
   color: var(--muted);
 }
 
+/* ---------- settings ---------- */
+
+.dialog.settings {
+  width: min(600px, 100%);
+}
+.settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px 24px 24px;
+  overflow-y: auto;
+}
+.setting h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.segmented {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.segmented button {
+  flex: 1;
+  min-height: 48px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  font-size: 16px;
+}
+.segmented button:active {
+  background: rgba(255, 255, 255, 0.12);
+}
+.segmented button.selected {
+  background: var(--accent);
+  color: #fff;
+}
+
 @media (max-width: 640px) {
   #volume {
     display: none;
