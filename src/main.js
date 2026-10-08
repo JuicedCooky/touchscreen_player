@@ -16,6 +16,9 @@ const OBSERVED_PROPERTIES = [
 const VIDEO_EXTENSIONS = ["mp4", "mkv", "webm", "avi", "mov", "wmv", "flv", "m4v", "ts", "mpg", "mpeg", "mp3", "flac", "wav", "ogg", "m4a"];
 const HIDE_DELAY_MS = 3000;
 const DOUBLE_TAP_MS = 300;
+const TAP_SLOP_PX = 12; // movement allowed before a press stops counting as a tap
+const SWIPE_MIN_PX = 60;
+const SWIPE_MAX_MS = 600;
 
 const $ = (id) => document.getElementById(id);
 const els = {
@@ -30,6 +33,7 @@ const els = {
   subList: $("sub-list"),
   settingsPanel: $("settings-panel"),
   settingsBody: $("settings-body"),
+  customize: $("customize"),
   back: $("back"),
   fwd: $("fwd"),
   seek: $("seek"),
@@ -108,7 +112,10 @@ function showControls() {
 let hintTimer;
 function flashHint(text, side) {
   els.hint.textContent = text;
-  els.hint.style.left = side === "left" ? "25%" : side === "right" ? "75%" : "50%";
+  // Center the hint in the double-tap zone it belongs to.
+  const [leftEdge, rightEdge] = settings.tapZones;
+  const pos = side === "left" ? leftEdge / 2 : side === "right" ? (1 + rightEdge) / 2 : (leftEdge + rightEdge) / 2;
+  els.hint.style.left = `${pos * 100}%`;
   els.hint.classList.add("show");
   clearTimeout(hintTimer);
   hintTimer = setTimeout(() => els.hint.classList.remove("show"), 600);
@@ -116,26 +123,54 @@ function flashHint(text, side) {
 
 // ---------- touch / pointer gestures on the video area ----------
 // Single tap: toggle controls. Double tap: left third = back, right third = forward,
-// middle = play/pause.
+// middle = play/pause. Horizontal swipe: right = forward, left = back.
+// Works for touch, pen and mouse (double-click / click-drag).
 
+function skip(direction) {
+  const step = settings.seekStep * direction;
+  seekBy(step);
+  flashHint(direction < 0 ? `« ${-step}s` : `${step}s »`, direction < 0 ? "left" : "right");
+}
+
+let press = null; // { id, x, y, t } of the pointer currently down on the stage
 let lastTap = 0;
 let singleTapTimer;
+
+els.stage.addEventListener("pointerdown", (e) => {
+  if (!e.isPrimary || e.target.closest("button")) return;
+  press = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() };
+  // Keep receiving the pointer even if a swipe ends over one of the bars.
+  els.stage.setPointerCapture(e.pointerId);
+});
+
+els.stage.addEventListener("pointercancel", () => (press = null));
+
 els.stage.addEventListener("pointerup", (e) => {
-  if (e.target.closest("button")) return;
+  if (!press || e.pointerId !== press.id) return;
   const now = performance.now();
+  const dx = e.clientX - press.x;
+  const dy = e.clientY - press.y;
+  const dt = now - press.t;
+  press = null;
+  // Swipe: a quick, mostly-horizontal flick.
+  if (Math.abs(dx) >= SWIPE_MIN_PX && Math.abs(dx) > 2 * Math.abs(dy) && dt <= SWIPE_MAX_MS) {
+    clearTimeout(singleTapTimer);
+    lastTap = 0;
+    skip(Math.sign(dx));
+    return;
+  }
+  // Any other drag is neither a tap nor a swipe.
+  if (Math.hypot(dx, dy) > TAP_SLOP_PX) return;
 
   if (now - lastTap < DOUBLE_TAP_MS) {
     clearTimeout(singleTapTimer);
     lastTap = 0;
     const x = e.clientX / window.innerWidth;
-    const step = settings.seekStep;
-    if (x < 1 / 3) {
-      seekBy(-step);
-      flashHint(`« ${step}s`, "left");
-    } else if (x > 2 / 3) {
-      seekBy(step);
-      flashHint(`${step}s »`, "right");
-    } else {
+    const [leftEdge, rightEdge] = settings.tapZones;
+    if (x < leftEdge) skip(-1);
+    else if (x > rightEdge) skip(1);
+    else {
+      flashHint(state.paused ? "▶" : "❚❚", "center");
       togglePause();
     }
     return;
@@ -245,10 +280,20 @@ const SETTINGS = [
 ];
 
 const STORAGE_KEY = "touch-player-settings";
+// Double-tap zone boundaries as fractions of the window width: [left|center, center|right].
+const DEFAULT_TAP_ZONES = [1 / 3, 2 / 3];
 const settings = Object.fromEntries(SETTINGS.map((s) => [s.key, s.default]));
+settings.tapZones = DEFAULT_TAP_ZONES;
 try {
   Object.assign(settings, JSON.parse(localStorage.getItem(STORAGE_KEY)) ?? {});
 } catch {}
+if (!Array.isArray(settings.tapZones) || settings.tapZones.length !== 2) settings.tapZones = DEFAULT_TAP_ZONES;
+
+function saveSettings() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  } catch {}
+}
 
 function updateSkipLabels() {
   els.back.innerHTML = `&#8634; ${settings.seekStep}`;
@@ -257,9 +302,7 @@ function updateSkipLabels() {
 
 function changeSetting(def, value) {
   settings[def.key] = value;
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-  } catch {}
+  saveSettings();
   def.apply(value);
   renderSettings();
 }
@@ -289,6 +332,113 @@ function renderSettings() {
 $("settings").onclick = () => {
   renderSettings();
   openModal(els.settingsPanel);
+};
+
+const tabs = els.settingsPanel.querySelectorAll("[data-tab]");
+tabs.forEach((tab) => {
+  tab.onclick = () => {
+    tabs.forEach((t) => t.classList.toggle("active", t === tab));
+    els.settingsPanel.querySelectorAll("[data-panel]").forEach((panel) => {
+      panel.classList.toggle("hidden", panel.dataset.panel !== tab.dataset.tab);
+    });
+  };
+});
+
+// ---------- full-screen editors (opened from the Customize UI tab) ----------
+// Each editor is a `.customize` screen with a [data-cancel] button; closing one returns
+// to the Settings dialog.
+
+const openEditor = () => document.querySelector(".customize:not(.hidden)");
+
+function showEditor(editor) {
+  els.settingsPanel.classList.add("hidden");
+  editor.classList.remove("hidden");
+  document.body.classList.add("customizing");
+}
+
+function closeEditor() {
+  document.querySelectorAll(".customize").forEach((ed) => ed.classList.add("hidden"));
+  document.body.classList.remove("customizing");
+  openModal(els.settingsPanel);
+}
+
+// ---------- layout customizer ----------
+// Shows non-interactive copies of the live bars in place. Save is a stub until the
+// layout becomes editable.
+
+function openCustomize() {
+  const preview = [els.topbar, els.controls].map((bar) => {
+    const copy = bar.cloneNode(true);
+    copy.removeAttribute("id");
+    copy.querySelectorAll("[id]").forEach((n) => n.removeAttribute("id"));
+    copy.classList.remove("hidden");
+    copy.inert = true;
+    return copy;
+  });
+  $("customize-preview").replaceChildren(...preview);
+  showEditor(els.customize);
+}
+
+function closeCustomize() {
+  $("customize-preview").replaceChildren();
+  closeEditor();
+}
+
+$("open-customize").onclick = openCustomize;
+$("customize-cancel").onclick = closeCustomize;
+$("customize-save").onclick = closeCustomize; // nothing to persist yet
+
+// ---------- double-tap zone editor ----------
+// Two draggable dividers split the screen into skip-back / play-pause / skip-forward
+// areas. Edits go to a draft that is only stored on Save.
+
+const MIN_ZONE = 0.1; // no zone may be narrower than 10% of the width
+const zonesEl = $("zones");
+const zoneEls = zonesEl.querySelectorAll(".zone");
+const dividerEls = zonesEl.querySelectorAll(".divider");
+let zonesDraft = [...settings.tapZones];
+
+function renderZones() {
+  const edges = [0, ...zonesDraft, 1];
+  zoneEls.forEach((zone, i) => {
+    zone.style.left = `${edges[i] * 100}%`;
+    zone.style.width = `${(edges[i + 1] - edges[i]) * 100}%`;
+    zone.querySelector(".zone-pct").textContent = `${Math.round((edges[i + 1] - edges[i]) * 100)}%`;
+  });
+  dividerEls.forEach((div, i) => (div.style.left = `${zonesDraft[i] * 100}%`));
+}
+
+dividerEls.forEach((div, i) => {
+  div.addEventListener("pointerdown", (e) => {
+    div.setPointerCapture(e.pointerId);
+    div.classList.add("dragging");
+  });
+  div.addEventListener("pointermove", (e) => {
+    if (!div.hasPointerCapture(e.pointerId)) return;
+    const lo = i === 0 ? MIN_ZONE : zonesDraft[0] + MIN_ZONE;
+    const hi = i === 0 ? zonesDraft[1] - MIN_ZONE : 1 - MIN_ZONE;
+    zonesDraft[i] = Math.min(hi, Math.max(lo, e.clientX / window.innerWidth));
+    renderZones();
+  });
+  const stop = () => div.classList.remove("dragging");
+  div.addEventListener("pointerup", stop);
+  div.addEventListener("pointercancel", stop);
+});
+
+$("open-zones").onclick = () => {
+  zonesDraft = [...settings.tapZones];
+  renderZones();
+  showEditor(zonesEl);
+};
+$("zones-reset").onclick = () => {
+  zonesDraft = [...DEFAULT_TAP_ZONES];
+  renderZones();
+};
+$("zones-cancel").onclick = closeEditor;
+$("zones-save").onclick = () => {
+  settings.tapZones = [...zonesDraft];
+  saveSettings();
+  closeEditor();
 };
 
 // ---------- modals ----------
@@ -338,6 +488,11 @@ els.volume.addEventListener("input", () => {
 });
 
 document.addEventListener("keydown", (e) => {
+  const editor = openEditor();
+  if (editor) {
+    if (e.key === "Escape") editor.querySelector("[data-cancel]").click();
+    return;
+  }
   if (modalOpen()) {
     if (e.key === "Escape") closeModals();
     return;
@@ -433,7 +588,8 @@ async function start() {
         idle: "yes",
       },
       observedProperties: OBSERVED_PROPERTIES,
-    });  } catch (e) {
+    });
+  } catch (e) {
     console.error("mpv init failed:", e);
     els.empty.innerHTML = `<p>Failed to start mpv:<br>${String(e)}</p><p>Run <code>npm run setup-lib</code> and restart.</p>`;
   }

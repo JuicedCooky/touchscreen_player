@@ -29,6 +29,8 @@ button {
 #stage {
   position: fixed;
   inset: 0;
+  /* We handle all gestures ourselves (no panning, zoom or swipe-to-navigate). */
+  touch-action: none;
 }
 
 .empty {
@@ -82,7 +84,7 @@ button {
   pointer-events: none;
 }
 
-#topbar {
+.topbar {
   top: 0;
   display: flex;
   align-items: center;
@@ -90,16 +92,16 @@ button {
   padding: 16px 16px 24px;
   background: linear-gradient(var(--panel) 60%, transparent);
 }
-#topbar.hidden {
+.topbar.hidden {
   transform: translateY(-16px);
 }
 
-#controls {
+.controls {
   bottom: 0;
   padding: 12px 16px 16px;
   background: linear-gradient(transparent, var(--panel) 30%);
 }
-#controls.hidden {
+.controls.hidden {
   transform: translateY(16px);
 }
 
@@ -138,7 +140,7 @@ button {
   background: rgba(255, 255, 255, 0.08);
   font-size: 20px;
 }
-#topbar button {
+.topbar button {
   padding: 0 18px;
   font-size: 17px;
 }
@@ -162,10 +164,10 @@ input[type="range"] {
   height: 40px;
   background: transparent;
 }
-#seek {
+.seek {
   flex: 1;
 }
-#volume {
+.volume {
   width: 140px;
 }
 input[type="range"]::-webkit-slider-runnable-track {
@@ -309,6 +311,52 @@ input[type="range"]::-webkit-slider-thumb {
   padding: 20px 24px 24px;
   overflow-y: auto;
 }
+.settings-body.hidden {
+  display: none;
+}
+.option-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: var(--touch);
+  padding: 14px 16px;
+  border: none;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  text-align: left;
+}
+.option-row:active {
+  background: rgba(255, 255, 255, 0.12);
+}
+.option-row .name {
+  font-size: 17px;
+}
+.option-row .meta {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.tabs button {
+  min-height: 48px;
+  padding: 0 16px;
+  border: none;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 16px;
+}
+.tabs button.active {
+  border-bottom-color: var(--accent);
+  color: var(--fg);
+}
+
 .setting h3 {
   margin: 0 0 8px;
   font-size: 15px;
@@ -337,8 +385,164 @@ input[type="range"]::-webkit-slider-thumb {
   color: #fff;
 }
 
+/* ---------- layout customizer ---------- */
+
+.customize {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+}
+.customize.hidden {
+  display: none;
+}
+/* The real bars hide while their preview copies are shown. */
+body.customizing #topbar,
+body.customizing #controls {
+  display: none;
+}
+
+/* Cloned bars sit at their real positions, outlined as editable regions. */
+#customize-preview .bar {
+  outline: 2px dashed var(--accent);
+  outline-offset: -6px;
+  border-radius: 12px;
+}
+#customize-preview .bar::before {
+  position: absolute;
+  left: 18px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+#customize-preview .topbar::before {
+  content: "Top bar";
+  bottom: -10px;
+}
+#customize-preview .controls::before {
+  content: "Bottom bar";
+  top: -10px;
+}
+
+.customize-panel {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(440px, calc(100% - 32px));
+  padding: 24px;
+  border-radius: 20px;
+  background: #1b1b1f;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  text-align: center;
+}
+.customize-panel h2 {
+  margin: 0 0 8px;
+  font-size: 22px;
+}
+.customize-panel p {
+  margin: 0 0 20px;
+  color: var(--muted);
+}
+.customize-actions {
+  display: flex;
+  gap: 12px;
+}
+.customize-actions button {
+  flex: 1;
+  min-height: var(--touch);
+  border: none;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 17px;
+}
+.customize-actions button.primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ---------- double-tap zone editor ---------- */
+
+.zones .zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  overflow: hidden;
+  text-align: center;
+}
+.zones .zone[data-zone="0"],
+.zones .zone[data-zone="2"] {
+  background: rgba(79, 140, 255, 0.22);
+}
+.zones .zone[data-zone="1"] {
+  background: rgba(255, 255, 255, 0.06);
+}
+.zone-name {
+  font-size: 20px;
+  font-weight: 600;
+}
+.zone-pct {
+  font-size: 15px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Wide invisible hit area around a thin visible line, with a grab handle. */
+.divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 56px;
+  transform: translateX(-50%);
+  cursor: ew-resize;
+  touch-action: none;
+}
+.divider::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 4px;
+  transform: translateX(-50%);
+  background: var(--accent);
+}
+.divider::after {
+  content: "\2194";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 22px;
+}
+.divider.dragging::after {
+  transform: translate(-50%, -50%) scale(1.15);
+}
+
+.zones-panel {
+  top: auto;
+  bottom: 24px;
+  transform: translateX(-50%);
+}
+
 @media (max-width: 640px) {
-  #volume {
+  .volume {
     display: none;
   }
   .columns {

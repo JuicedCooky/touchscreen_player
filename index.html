@@ -18,17 +18,17 @@
       </div>
     </div>
 
-    <div id="topbar" class="bar">
+    <div id="topbar" class="bar topbar">
       <button id="open" title="Open">&#128193; Open</button>
       <button id="settings" title="Settings">&#9881;&#65039; Settings</button>
       <div class="title" id="title"></div>
       <button id="tracks" title="Audio &amp; subtitles" disabled>&#127911; Audio / Subs</button>
     </div>
 
-    <div id="controls" class="bar">
+    <div id="controls" class="bar controls">
       <div class="seek-row">
         <span id="time">0:00</span>
-        <input id="seek" type="range" min="0" max="0" step="0.1" value="0" />
+        <input id="seek" class="seek" type="range" min="0" max="0" step="0.1" value="0" />
         <span id="duration">0:00</span>
       </div>
       <div class="button-row">
@@ -37,7 +37,7 @@
         <button id="fwd" title="Forward 10s">10 &#8635;</button>
         <div class="spacer"></div>
         <button id="mute" title="Mute">&#128266;</button>
-        <input id="volume" type="range" min="0" max="100" step="1" value="100" />
+        <input id="volume" class="volume" type="range" min="0" max="100" step="1" value="100" />
         <button id="fullscreen" title="Fullscreen">&#x26F6;</button>
       </div>
     </div>
@@ -67,7 +67,53 @@
           <h2 id="settings-heading">Settings</h2>
           <button data-close title="Close">&#10005;</button>
         </header>
-        <div id="settings-body" class="settings-body"></div>
+        <nav class="tabs" role="tablist">
+          <button role="tab" data-tab="general" class="active">General</button>
+          <button role="tab" data-tab="customize">Customize UI</button>
+        </nav>
+        <div id="settings-body" class="settings-body" data-panel="general"></div>
+        <div class="settings-body hidden" data-panel="customize">
+          <button id="open-customize" class="option-row">
+            <span class="name">Customize layout</span>
+            <span class="meta">Change which controls appear on screen and where they sit.</span>
+          </button>
+          <button id="open-zones" class="option-row">
+            <span class="name">Double-tap zones</span>
+            <span class="meta">Resize the left (skip back), center (play / pause) and right (skip forward) areas.</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Full-screen layout editor. The bars are cloned in by JS so the preview always
+         matches the live layout. -->
+    <div id="customize" class="customize hidden">
+      <div id="customize-preview"></div>
+      <div class="customize-panel" role="dialog" aria-labelledby="customize-heading">
+        <h2 id="customize-heading">Customize layout</h2>
+        <p>This is your current layout. Rearranging controls is coming soon.</p>
+        <div class="customize-actions">
+          <button id="customize-cancel" data-cancel>Cancel</button>
+          <button id="customize-save" class="primary">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Double-tap zone editor: zones and dividers are positioned by JS. -->
+    <div id="zones" class="customize zones hidden">
+      <div class="zone" data-zone="0"><span class="zone-name">&#171; Skip back</span><span class="zone-pct"></span></div>
+      <div class="zone" data-zone="1"><span class="zone-name">&#9654; Play / pause</span><span class="zone-pct"></span></div>
+      <div class="zone" data-zone="2"><span class="zone-name">Skip forward &#187;</span><span class="zone-pct"></span></div>
+      <div class="divider" data-divider="0"></div>
+      <div class="divider" data-divider="1"></div>
+      <div class="customize-panel zones-panel" role="dialog" aria-labelledby="zones-heading">
+        <h2 id="zones-heading">Double-tap zones</h2>
+        <p>Drag the dividers to resize each area.</p>
+        <div class="customize-actions">
+          <button id="zones-reset">Reset</button>
+          <button id="zones-cancel" data-cancel>Cancel</button>
+          <button id="zones-save" class="primary">Save</button>
+        </div>
       </div>
     </div>
   </body>

@@ -22,7 +22,7 @@ Build an installer with `npm run tauri build`. The DLLs in `src-tauri/lib` are b
 | Action | Touch | Mouse / keyboard |
 | --- | --- | --- |
 | Show / hide controls | Tap | Move mouse |
-| Seek ±10 s | Double-tap left / right third | ← / → (±5 s) |
+| Skip back / forward (step set in Settings, default 10 s) | Double-tap left / right third, or swipe left / right | ← / → (±5 s) |
 | Play / pause | Double-tap center | Space |
 | Fullscreen | ⛶ button | F / Esc |
 | Open file | Open button (top bar) or drag & drop | |
